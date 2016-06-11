@@ -24,4 +24,7 @@ deps/lua/src/luac
 deps/lua/src/liblua.a
 .make-*
 .prerequisites
+*.out
 *.dSYM
+*.py
+*.pyc

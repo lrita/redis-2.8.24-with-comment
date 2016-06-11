@@ -120,6 +120,7 @@ void sdsclear(sds s) {
     sh->buf[0] = '\0';
 }
 
+// 扩容free
 /* Enlarge the free space at the end of the sds string so that the caller
  * is sure that after calling this function can overwrite up to addlen
  * bytes after the end of the string, plus one more byte for nul term.
@@ -146,6 +147,7 @@ sds sdsMakeRoomFor(sds s, size_t addlen) {
     return newsh->buf;
 }
 
+// 缩容free
 /* Reallocate the sds string so that it has no free space at the end. The
  * contained string remains not altered, but next concatenation operations
  * will require a reallocation.
@@ -161,6 +163,7 @@ sds sdsRemoveFreeSpace(sds s) {
     return sh->buf;
 }
 
+// 获得一个sds string占用的总内存大小
 /* Return the total size of the allocation of the specifed sds string,
  * including:
  * 1) The sds header before the pointer.
@@ -209,6 +212,7 @@ void sdsIncrLen(sds s, int incr) {
     s[sh->len] = '\0';
 }
 
+// 增长free的大小
 /* Grow the sds to have the specified length. Bytes that were not part of
  * the original length of the sds will be set to zero.
  *
@@ -231,6 +235,7 @@ sds sdsgrowzero(sds s, size_t len) {
     return s;
 }
 
+// 拼接len长的数据
 /* Append the specified binary-safe string pointed by 't' of 'len' bytes to the
  * end of the specified sds string 's'.
  *
@@ -250,6 +255,7 @@ sds sdscatlen(sds s, const void *t, size_t len) {
     return s;
 }
 
+// 拼接字符串t
 /* Append the specified null termianted C string to the sds string 's'.
  *
  * After the call, the passed sds string is no longer valid and all the
@@ -258,6 +264,7 @@ sds sdscat(sds s, const char *t) {
     return sdscatlen(s, t, strlen(t));
 }
 
+// 拼接2个sds
 /* Append the specified sds 't' to the existing sds 's'.
  *
  * After the call, the modified sds string is no longer valid and all the
@@ -266,6 +273,7 @@ sds sdscatsds(sds s, const sds t) {
     return sdscatlen(s, t, sdslen(t));
 }
 
+// strncpy
 /* Destructively modify the sds string 's' to hold the specified binary
  * safe string pointed by 't' of length 'len' bytes. */
 sds sdscpylen(sds s, const char *t, size_t len) {
@@ -285,12 +293,14 @@ sds sdscpylen(sds s, const char *t, size_t len) {
     return s;
 }
 
+// strcpy
 /* Like sdscpylen() but 't' must be a null-termined string so that the length
  * of the string is obtained with strlen(). */
 sds sdscpy(sds s, const char *t) {
     return sdscpylen(s, t, strlen(t));
 }
 
+// long long 转换成 string
 /* Helper for sdscatlonglong() doing the actual number -> string
  * conversion. 's' must point to a string with room for at least
  * SDS_LLSTR_SIZE bytes.
@@ -329,6 +339,7 @@ int sdsll2str(char *s, long long value) {
     return l;
 }
 
+// unsigned long long 转换成 string
 /* Identical sdsll2str(), but for unsigned long long type. */
 int sdsull2str(char *s, unsigned long long v) {
     char *p, aux;
@@ -369,6 +380,7 @@ sds sdsfromlonglong(long long value) {
     return sdsnewlen(buf,len);
 }
 
+// sds 追加写入vprintf里的内容
 /* Like sdscatprintf() but gets va_list instead of being variadic. */
 sds sdscatvprintf(sds s, const char *fmt, va_list ap) {
     va_list cpy;
@@ -407,6 +419,7 @@ sds sdscatvprintf(sds s, const char *fmt, va_list ap) {
     return t;
 }
 
+// sds追加写入printf的内容
 /* Append to the sds string 's' a string obtained using printf-alike format
  * specifier.
  *
@@ -432,6 +445,7 @@ sds sdscatprintf(sds s, const char *fmt, ...) {
     return t;
 }
 
+// sds自定义的format函数
 /* This function is similar to sdscatprintf, but much faster as it does
  * not rely on sprintf() family functions implemented by the libc that
  * are often very slow. Moreover directly handling the sds string as
@@ -548,6 +562,7 @@ sds sdscatfmt(sds s, char const *fmt, ...) {
     return s;
 }
 
+// 删除sds中字符串左右两端跟cset里字符一致的部分
 /* Remove the part of the string from left and from right composed just of
  * contiguous characters found in 'cset', that is a null terminted C string.
  *
@@ -579,6 +594,8 @@ sds sdstrim(sds s, const char *cset) {
     return s;
 }
 
+// 将sds变成start -- end直接的字符串部分，
+// start、end可以是复数，例如：-1表示字符串的最后一个字符，-2表示倒数第二个字符
 /* Turn the string into a smaller (or equal) string containing only the
  * substring specified by the 'start' and 'end' indexes.
  *
@@ -625,6 +642,7 @@ void sdsrange(sds s, int start, int end) {
     sh->len = newlen;
 }
 
+// 使sds中字符串小写
 /* Apply tolower() to every character of the sds string 's'. */
 void sdstolower(sds s) {
     int len = sdslen(s), j;
@@ -632,6 +650,7 @@ void sdstolower(sds s) {
     for (j = 0; j < len; j++) s[j] = tolower(s[j]);
 }
 
+// 使sds中字符串大写
 /* Apply toupper() to every character of the sds string 's'. */
 void sdstoupper(sds s) {
     int len = sdslen(s), j;
@@ -639,6 +658,7 @@ void sdstoupper(sds s) {
     for (j = 0; j < len; j++) s[j] = toupper(s[j]);
 }
 
+// memcmp
 /* Compare two sds strings s1 and s2 with memcmp().
  *
  * Return value:
@@ -662,6 +682,7 @@ int sdscmp(const sds s1, const sds s2) {
     return cmp;
 }
 
+// 将字符串s按seq为分隔符，分割成count个sds
 /* Split 's' with separator in 'sep'. An array
  * of sds strings is returned. *count will be set
  * by reference to the number of tokens returned.
@@ -684,6 +705,7 @@ sds *sdssplitlen(const char *s, int len, const char *sep, int seplen, int *count
 
     if (seplen < 1 || len < 0) return NULL;
 
+    //第一次先预先分配slots个token，不够的话再realloc
     tokens = zmalloc(sizeof(sds)*slots);
     if (tokens == NULL) return NULL;
 
@@ -727,6 +749,7 @@ cleanup:
     }
 }
 
+// 释放sdssplitlen、sdssplitargs返回的tokens
 /* Free the result returned by sdssplitlen(), or do nothing if 'tokens' is NULL. */
 void sdsfreesplitres(sds *tokens, int count) {
     if (!tokens) return;
@@ -735,6 +758,7 @@ void sdsfreesplitres(sds *tokens, int count) {
     zfree(tokens);
 }
 
+// 拼接转义后的字符串p，转义后的字符串用""包裹
 /* Append to the sds string "s" an escaped string representation where
  * all the non-printable characters (tested with isprint()) are turned into
  * escapes in the form "\n\r\a...." or "\x<hex-number>".
@@ -797,6 +821,8 @@ int hex_digit_to_int(char c) {
     }
 }
 
+// 将一个字符串line转化为一组args参数列表，argc为参数个数。
+// 转义后的字符串也可以解析。
 /* Split a line into arguments, where every argument can be in the
  * following programming-language REPL-alike form:
  *
@@ -926,6 +952,7 @@ err:
     return NULL;
 }
 
+// 将from里的各个字符按顺序改为to中的字符
 /* Modify the string substituting all the occurrences of the set of
  * characters specified in the 'from' string to the corresponding character
  * in the 'to' array.
@@ -949,6 +976,7 @@ sds sdsmapchars(sds s, const char *from, const char *to, size_t setlen) {
     return s;
 }
 
+// 将一个string数组组合成一个sds，分隔符为sep，sep也需要是一个C string
 /* Join an array of C strings using the specified separator (also a C string).
  * Returns the result as an sds string. */
 sds sdsjoin(char **argv, int argc, char *sep) {

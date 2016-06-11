@@ -38,17 +38,20 @@
 
 typedef char *sds;
 
+// 字符串结尾包含'\0'
 struct sdshdr {
     unsigned int len;
     unsigned int free;
     char buf[];
 };
 
+// 获取buff剩余多少字节
 static inline size_t sdslen(const sds s) {
     struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
     return sh->len;
 }
 
+// 获取buff剩余多少字节
 static inline size_t sdsavail(const sds s) {
     struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
     return sh->free;

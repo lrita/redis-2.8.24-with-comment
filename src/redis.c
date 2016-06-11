@@ -1309,7 +1309,9 @@ void createSharedObjects(void) {
 void initServerConfig(void) {
     int j;
 
+    //获取一个随机的ID，确保每次程序启动时都拥有唯一的ID
     getRandomHexChars(server.runid,REDIS_RUN_ID_SIZE);
+    //每个field的含义参见struct redisServer的定义处
     server.configfile = NULL;
     server.hz = REDIS_DEFAULT_HZ;
     server.runid[REDIS_RUN_ID_SIZE] = '\0';
@@ -3262,6 +3264,7 @@ void loadDataFromDisk(void) {
     }
 }
 
+//输出日志，触发一个SIGSEGV，然后backtrace栈调用
 void redisOutOfMemoryHandler(size_t allocation_size) {
     redisLog(REDIS_WARNING,"Out Of Memory allocating %zu bytes!",
         allocation_size);
@@ -3279,6 +3282,8 @@ void redisSetProcTitle(char *title) {
 #endif
 }
 
+//相关参考: 《redis源码分析 ——初始化》
+//http://blog.csdn.net/chosen0ne/article/details/42686383
 int main(int argc, char **argv) {
     struct timeval tv;
 
@@ -3289,12 +3294,18 @@ int main(int argc, char **argv) {
     spt_init(argc, argv);
 #endif
     setlocale(LC_COLLATE,"");
+    //初始化内存管理的一些基础配置
     zmalloc_enable_thread_safeness();
+    //设置系统内存耗尽(malloc、calloc等函数返回NULL)时，的回调函数
+    //redisOutOfMemoryHandler的动作:输出日志，触发一个SIGSEGV，然后backtrace栈调用
     zmalloc_set_oom_handler(redisOutOfMemoryHandler);
     srand(time(NULL)^getpid());
+    //初始化dict hash种子
     gettimeofday(&tv,NULL);
     dictSetHashFunctionSeed(tv.tv_sec^tv.tv_usec^getpid());
+    //检查是否开启--sentinel模式
     server.sentinel_mode = checkForSentinelMode(argc,argv);
+    //初始化默认config配置，命令列表
     initServerConfig();
 
     /* We need to init sentinel right now as parsing the configuration file
@@ -3355,15 +3366,21 @@ int main(int argc, char **argv) {
         }
         if (configfile) server.configfile = getAbsolutePath(configfile);
         resetServerSaveParams();
+        //加载解析配置文件
         loadServerConfig(configfile,options);
         sdsfree(options);
     } else {
         redisLog(REDIS_WARNING, "Warning: no config file specified, using the default config. In order to specify a config file use %s /path/to/%s.conf", argv[0], server.sentinel_mode ? "sentinel" : "redis");
     }
+    //按需启动daemonize模式
     if (server.daemonize) daemonize();
+    //*important* 初始化各个功能
     initServer();
+    //按需创建pid文件，将进程pid写入
     if (server.daemonize) createPidFile();
+    //修改进程名称
     redisSetProcTitle(argv[0]);
+    //打印redis命令行字符logo
     redisAsciiArt();
 
     if (!server.sentinel_mode) {
@@ -3388,7 +3405,9 @@ int main(int argc, char **argv) {
     }
 
     aeSetBeforeSleepProc(server.el,beforeSleep);
+    //事件驱动主循环
     aeMain(server.el);
+    //释放相关内存
     aeDeleteEventLoop(server.el);
     return 0;
 }
