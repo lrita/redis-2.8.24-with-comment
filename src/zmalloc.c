@@ -108,6 +108,7 @@ void zlibc_free(void *ptr) {
     } \
 } while(0)
 
+// zmalloc 分配的内存总量
 static size_t used_memory = 0;
 static int zmalloc_thread_safe = 0;
 pthread_mutex_t used_memory_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -126,9 +127,13 @@ void *zmalloc(size_t size) {
 
     if (!ptr) zmalloc_oom_handler(size);
 #ifdef HAVE_MALLOC_SIZE
+    // 当使用tc_malloc、je_malloc或者apple MacOS时，有zmalloc_size映射的函数，可以获得某个指针
+    // alloc时实际占用的内存大小，便于精确控制内存用量.
+    // used_memory存储内存总用量
     update_zmalloc_stat_alloc(zmalloc_size(ptr));
     return ptr;
 #else
+    // 当没有上没的清醒时，默认啊alloc内存有PREFIX_SIZE字节的头部，头部用于填写该次分配的内存大小
     *((size_t*)ptr) = size;
     update_zmalloc_stat_alloc(size+PREFIX_SIZE);
     return (char*)ptr+PREFIX_SIZE;
@@ -245,6 +250,8 @@ void zmalloc_set_oom_handler(void (*oom_handler)(size_t)) {
     zmalloc_oom_handler = oom_handler;
 }
 
+// 获得进程实际使用的物理内存，平台相关实现，linux下调用defined(HAVE_PROC_STAT)
+// 部分的逻辑，读取/proc下文件获得。
 /* Get the RSS information in an OS-specific way.
  *
  * WARNING: the function zmalloc_get_rss() is not designed to be fast
@@ -323,6 +330,7 @@ size_t zmalloc_get_rss(void) {
 }
 #endif
 
+// 获得内存碎片率，`info`命令时被调用
 /* Fragmentation = RSS / allocated-bytes */
 float zmalloc_get_fragmentation_ratio(size_t rss) {
     return (float)rss/zmalloc_used_memory();
@@ -361,6 +369,15 @@ size_t zmalloc_get_smap_bytes_by_field(char *field) {
 }
 #endif
 
+// 获取Private_Dirty大小，RSS=Shared_Clean+Shared_Dirty+Private_Clean+Private_Dirty
+// Shared_Clean：引用大于1，未被修改
+// Shared_Dirty：引用大于1，被修改
+// Private_Clean：引用等于1，未被修改
+// Private_Dirty：引用等于1，被修改
+// http://stackoverflow.com/questions/17594183/what-does-private-dirty-memory-mean-in-smaps
+// http://stackoverflow.com/questions/33027341/shared-dirty-vs-private-dirty-in-shared-memory
+// `Private_Dirty` are the pages in the mapping that have been written by this process but
+// not referenced by any other process.
 size_t zmalloc_get_private_dirty(void) {
     return zmalloc_get_smap_bytes_by_field("Private_Dirty:");
 }

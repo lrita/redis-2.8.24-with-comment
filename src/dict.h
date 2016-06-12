@@ -73,10 +73,11 @@ typedef struct dictht {
     unsigned long used;
 } dictht;
 
+// 字典类型 hash 表
 typedef struct dict {
-    dictType *type;
+    dictType *type; /* hash method */
     void *privdata;
-    dictht ht[2];
+    dictht ht[2];   /* hash table */
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
     int iterators; /* number of iterators currently running */
 } dict;

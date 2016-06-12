@@ -75,6 +75,8 @@ int THPIsEnabled(void) {
 }
 #endif
 
+// http://blog.yufeng.info/archives/2118
+// 判断操作系统是否开启了`大页面内存`
 /* Report the amount of AnonHugePages in smap, in bytes. If the return
  * value of the function is non-zero, the process is being targeted by
  * THP support, and is likely to have memory usage / latency issues. */
