@@ -104,6 +104,7 @@ void mixObjectDigest(unsigned char *digest, robj *o) {
     decrRefCount(o);
 }
 
+// 计算所有数据库的digest
 /* Compute the dataset digest. Since keys, sets elements, hashes elements
  * are not ordered, we use a trick: every aggregate digest is the xor
  * of the digests of their elements. This way the order will not change
@@ -252,6 +253,7 @@ void computeDatasetDigest(unsigned char *final) {
     }
 }
 
+// 命令`debug`的回调函数
 void debugCommand(redisClient *c) {
     if (!strcasecmp(c->argv[1]->ptr,"segfault")) {
         *((char*)-1) = 'x';
@@ -482,6 +484,8 @@ void bugReportStart(void) {
     }
 }
 
+// EIP寄存器，用来存储CPU要读取指令的地址，CPU通过EIP寄存器读取即将要执行的指令。
+// 每次CPU执行完相应的汇编指令之后，EIP寄存器的值就会增加。
 #ifdef HAVE_BACKTRACE
 static void *getMcontextEip(ucontext_t *uc) {
 #if defined(__APPLE__) && !defined(MAC_OS_X_VERSION_10_6)
@@ -726,6 +730,7 @@ void memtest_non_destructive_invert(void *addr, size_t size);
 void memtest_non_destructive_swap(void *addr, size_t size);
 #define MEMTEST_MAX_REGIONS 128
 
+// 做一个简单的memory test，粗略判断是否是RAM损坏。
 int memtest_test_linux_anonymous_maps(void) {
     FILE *fp = fopen("/proc/self/maps","r");
     char line[1024];
@@ -804,6 +809,7 @@ int memtest_test_linux_anonymous_maps(void) {
 }
 #endif
 
+// 段错误时，信号回调函数
 void sigsegvHandler(int sig, siginfo_t *info, void *secret) {
     ucontext_t *uc = (ucontext_t*) secret;
     sds infostring, clients;
@@ -899,6 +905,8 @@ void redisLogHexDump(int level, char *descr, void *value, size_t len) {
     redisLogRaw(level|REDIS_LOG_RAW,"\n");
 }
 
+// about watchdog: http://blog.nosqlfan.com/html/3839.html
+// 定时打印堆栈信息
 /* =========================== Software Watchdog ============================ */
 #include <sys/time.h>
 
