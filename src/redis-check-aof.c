@@ -102,6 +102,14 @@ int readArgc(FILE *fp, long *target) {
     return readLong(fp,'*',target);
 }
 
+// aof文件格式: http://blog.csdn.net/laiconglin/article/details/6641844
+//              http://redisbook.readthedocs.io/en/latest/internal/aof.html
+// e.g.: `RPOP list`的AOF文件
+// *2\r\n   (2代表命令有2个字段)
+// $4\r\n   (4代表第一个字段的长度)
+// RPOP\r\n (第一个字段的值)
+// $4\r\n   (第二个字段的长度)
+// list\r\n (第二个字段的值)
 off_t process(FILE *fp) {
     long argc;
     off_t pos = 0;
