@@ -1695,6 +1695,7 @@ cleanup:
     return retval;
 }
 
+// 命令"config rewrite"时被调用
 /* Rewrite the configuration file at "path".
  * If the configuration file already exists, we try at best to retain comments
  * and overall structure.
@@ -1815,6 +1816,7 @@ int rewriteConfig(char *path) {
  * CONFIG command entry point
  *----------------------------------------------------------------------------*/
 
+// 命令`config`的回调函数
 void configCommand(redisClient *c) {
     if (!strcasecmp(c->argv[1]->ptr,"set")) {
         if (c->argc != 4) goto badarity;
