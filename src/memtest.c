@@ -87,6 +87,7 @@ void memtest_progress_step(size_t curr, size_t size, char c) {
     fflush(stdout);
 }
 
+// 测试内存区域的赋值、读取
 /* Test that addressing is fine. Every location is populated with its own
  * address, and finally verified. This test is very fast but may detect
  * ASAP big issues with the memory subsystem. */
@@ -114,6 +115,7 @@ void memtest_addressing(unsigned long *l, size_t bytes) {
     }
 }
 
+// 填写随机值
 /* Fill words stepping a single page at every write, so we continue to
  * touch all the pages in the smallest amount of time reducing the
  * effectiveness of caches, and making it hard for the OS to transfer
@@ -269,7 +271,11 @@ void memtest_non_destructive_swap(void *addr, size_t size) {
     }
 }
 
+// 执行 ./redis-server --test-memory 4096 命令时，RAM测试函数
+// megabytes:要测试内存的大小，单位MB
+// passes:   测试次数
 void memtest(size_t megabytes, int passes) {
+    // 获取终端窗口大小
     if (ioctl(1, TIOCGWINSZ, &ws) == -1) {
         ws.ws_col = 80;
         ws.ws_row = 20;
