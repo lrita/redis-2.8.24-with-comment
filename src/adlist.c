@@ -33,6 +33,8 @@
 #include "adlist.h"
 #include "zmalloc.h"
 
+// 说明参考: http://redisbook.readthedocs.io/en/latest/internal-datastruct/adlist.html
+
 /* Create a new list. The created list can be freed with
  * AlFreeList(), but private value of every node need to be freed
  * by the user before to call AlFreeList().
