@@ -47,6 +47,8 @@
 #include "zmalloc.h"
 #include "redisassert.h"
 
+//相关说明: http://redisbook.readthedocs.io/en/latest/internal-datastruct/dict.html
+
 /* Using dictEnableResize() / dictDisableResize() we make possible to
  * enable/disable resizing of the hash table as needed. This is very important
  * for Redis, as we use copy-on-write and don't want to move too much memory
@@ -292,6 +294,7 @@ int dictRehashMilliseconds(dict *d, int ms) {
     return rehashes;
 }
 
+// 有safe iteratior 遍历的过程中，不进行rehash
 /* This function performs just a step of rehashing, and only if there are
  * no safe iterators bound to our hash table. When we have iterators in the
  * middle of a rehashing we can't mess with the two hash tables otherwise
@@ -655,6 +658,7 @@ static unsigned long rev(unsigned long v) {
     return v;
 }
 
+// dictScan 解析: http://www.tuicool.com/articles/VjE7fua
 /* dictScan() is used to iterate over the elements of a dictionary.
  *
  * Iterating works the following way:
