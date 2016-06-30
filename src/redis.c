@@ -3224,6 +3224,7 @@ void setupSignalHandlers(void) {
 
 #ifdef HAVE_BACKTRACE
     sigemptyset(&act.sa_mask);
+    // about SA_SIGINFO: http://www.ibm.com/developerworks/cn/linux/l-sigdebug.html
     act.sa_flags = SA_NODEFER | SA_RESETHAND | SA_SIGINFO;
     act.sa_sigaction = sigsegvHandler;
     sigaction(SIGSEGV, &act, NULL);

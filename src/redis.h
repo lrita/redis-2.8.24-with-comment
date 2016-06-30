@@ -496,7 +496,7 @@ typedef struct redisClient {
     sds querybuf;
     size_t querybuf_peak;   /* Recent (100ms or more) peak of querybuf size */
     int argc;
-    robj **argv;
+    robj **argv;            /* command's argv */
     struct redisCommand *cmd, *lastcmd;
     int reqtype;
     int multibulklen;       /* number of multi bulk arguments left to read */
@@ -557,6 +557,8 @@ struct sharedObjectsStruct {
     *bulkhdr[REDIS_SHARED_BULKHDR_LEN];  /* "$<value>\r\n" */
 };
 
+// 跳跃表，参考: http://redisbook.readthedocs.io/en/latest/internal-datastruct/skiplist.html
+
 /* ZSETs use a specialized version of Skiplists */
 typedef struct zskiplistNode {
     robj *obj;
@@ -564,13 +566,16 @@ typedef struct zskiplistNode {
     struct zskiplistNode *backward;
     struct zskiplistLevel {
         struct zskiplistNode *forward;
+        // span的解释: http://stackoverflow.com/questions/10458572/what-does-the-skiplistnode-variable-span-mean-in-redis-h
         unsigned int span;
     } level[];
 } zskiplistNode;
 
 typedef struct zskiplist {
     struct zskiplistNode *header, *tail;
+    // 节点个数
     unsigned long length;
+    // 所有节点中level的最大值
     int level;
 } zskiplist;
 

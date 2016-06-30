@@ -55,6 +55,8 @@
 static int zslLexValueGteMin(robj *value, zlexrangespec *spec);
 static int zslLexValueLteMax(robj *value, zlexrangespec *spec);
 
+// 相关参考: http://blog.csdn.net/acceptedxukai/article/details/17333673
+
 zskiplistNode *zslCreateNode(int level, double score, robj *obj) {
     zskiplistNode *zn = zmalloc(sizeof(*zn)+level*sizeof(struct zskiplistLevel));
     zn->score = score;
@@ -89,6 +91,7 @@ void zslFree(zskiplist *zsl) {
 
     zfree(zsl->header);
     while(node) {
+        // level[0]的链表上拥有全部node
         next = node->level[0].forward;
         zslFreeNode(node);
         node = next;
@@ -96,6 +99,8 @@ void zslFree(zskiplist *zsl) {
     zfree(zsl);
 }
 
+// 随机生成一个level值，level的概率分布应该是2的N次方等比分布，越小的数概率越大
+// (即: n出现概率是n+1出现概率的2倍)
 /* Returns a random level for the new skiplist node we are going to create.
  * The return value of this function is between 1 and ZSKIPLIST_MAXLEVEL
  * (both inclusive), with a powerlaw-alike distribution where higher
@@ -116,6 +121,8 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, robj *obj) {
     x = zsl->header;
     for (i = zsl->level-1; i >= 0; i--) {
         /* store rank that is crossed to reach the insert position */
+        //rank[i]用来记录第i层达到插入位置的所跨越的节点总数,也就是该层最接近(小于)给定score的排名
+        //rank[i]初始化为上一层所跨越的节点总数
         rank[i] = i == (zsl->level-1) ? 0 : rank[i+1];
         while (x->level[i].forward &&
             (x->level[i].forward->score < score ||
@@ -141,10 +148,23 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, robj *obj) {
     }
     x = zslCreateNode(level,score,obj);
     for (i = 0; i < level; i++) {
+        // 维护各个level的链表，将新增节点加入各个level对应的位置上
         x->level[i].forward = update[i]->level[i].forward;
         update[i]->level[i].forward = x;
 
         /* update span covered by update[i] as x is inserted here */
+        /**
+            rank[i]: 在第i层，update[i]->score的排名
+            rank[0] - rank[i]: update[0]->score与update[i]->score之间间隔了几个数,即span数目
+            对于update[i]->level[i].span值的更新由于在update[i]与update[i]->level[i]->forward之间又添加了x,
+            update[i]->level[i].span = 从update[i]到x的span数目,
+            由于update[0]后面肯定是新添加的x，所以自然新的update[i]->level[i].span = (rank[0] - rank[i]) + 1;
+            x->level[i].span = 从x到update[i]->forword的span数目,
+            原来的update[i]->level[i].span = 从update[i]到update[i]->level[i]->forward的span数目
+            所以x->level[i].span = 原来的update[i]->level[i].span - (rank[0] - rank[i]);
+
+            另外需要注意当level > zsl->level时，update[i] = zsl->header的span处理
+        */
         x->level[i].span = update[i]->level[i].span - (rank[0] - rank[i]);
         update[i]->level[i].span = (rank[0] - rank[i]) + 1;
     }
