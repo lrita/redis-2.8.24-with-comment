@@ -416,6 +416,7 @@ static int anetV6Only(char *err, int s) {
     return ANET_OK;
 }
 
+// 创建TCP socket, 并bind可用的port, 再调用listen
 static int _anetTcpServer(char *err, int port, char *bindaddr, int af, int backlog)
 {
     int s, rv;
@@ -463,6 +464,7 @@ int anetTcp6Server(char *err, int port, char *bindaddr, int backlog)
     return _anetTcpServer(err, port, bindaddr, AF_INET6, backlog);
 }
 
+// 创建一个调用listen的unix_domain socket
 int anetUnixServer(char *err, char *path, mode_t perm, int backlog)
 {
     int s;

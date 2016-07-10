@@ -1435,6 +1435,7 @@ void initServerConfig(void) {
      * redis.conf using the rename-command directive. */
     server.commands = dictCreate(&commandTableDictType,NULL);
     server.orig_commands = dictCreate(&commandTableDictType,NULL);
+    // 加载redis命令列表
     populateCommandTable();
     server.delCommand = lookupCommandByCString("del");
     server.multiCommand = lookupCommandByCString("multi");
@@ -1655,6 +1656,7 @@ void initServer(void) {
 
     signal(SIGHUP, SIG_IGN);
     signal(SIGPIPE, SIG_IGN);
+    // 设置停机信号回调、debug信号回调
     setupSignalHandlers();
 
     if (server.syslog_enabled) {
@@ -1671,8 +1673,11 @@ void initServer(void) {
     server.unblocked_clients = listCreate();
     server.ready_keys = listCreate();
 
+    // 创建一些静态的输出用的字符串object，供全局使用
     createSharedObjects();
+    // 调整进程能打开的文件描述符大小
     adjustOpenFilesLimit();
+    // 创建驱动事件循环
     server.el = aeCreateEventLoop(server.maxclients+REDIS_EVENTLOOP_FDSET_INCR);
     server.db = zmalloc(sizeof(redisDb)*server.dbnum);
 
@@ -1699,6 +1704,7 @@ void initServer(void) {
         exit(1);
     }
 
+    // 初始化每个db对应的数据结构
     /* Create the Redis databases, and initialize other internal state. */
     for (j = 0; j < server.dbnum; j++) {
         server.db[j].dict = dictCreate(&dbDictType,NULL);
@@ -3216,6 +3222,7 @@ void setupSignalHandlers(void) {
 
     /* When the SA_SIGINFO flag is set in sa_flags then sa_sigaction is used.
      * Otherwise, sa_handler is used. */
+    // 设置停机信号回调函数
     sigemptyset(&act.sa_mask);
     act.sa_flags = 0;
     act.sa_handler = sigShutdownHandler;
@@ -3223,6 +3230,7 @@ void setupSignalHandlers(void) {
     sigaction(SIGINT, &act, NULL);
 
 #ifdef HAVE_BACKTRACE
+    // 设置debug信号回调函数
     sigemptyset(&act.sa_mask);
     // about SA_SIGINFO: http://www.ibm.com/developerworks/cn/linux/l-sigdebug.html
     act.sa_flags = SA_NODEFER | SA_RESETHAND | SA_SIGINFO;
@@ -3272,6 +3280,7 @@ void redisOutOfMemoryHandler(size_t allocation_size) {
     redisPanic("Redis aborting for OUT OF MEMORY");
 }
 
+// 设置进程名称(ps命令时看到的名称)
 void redisSetProcTitle(char *title) {
 #ifdef USE_SETPROCTITLE
     setproctitle("%s %s:%d",
