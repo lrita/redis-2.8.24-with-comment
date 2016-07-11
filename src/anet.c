@@ -193,6 +193,7 @@ int anetSendTimeout(char *err, int fd, long long ms) {
     return ANET_OK;
 }
 
+// 获得一个host的IP，返回字符串形式的IP
 /* anetGenericResolve() is called by anetResolve() and anetResolveIP() to
  * do the actual work. It resolves the hostname "host" and set the string
  * representation of the IP address into the buffer pointed by "ipbuf".
@@ -262,6 +263,7 @@ static int anetCreateSocket(char *err, int domain) {
     return s;
 }
 
+// 建立一个连接到addr的TCP连接
 #define ANET_CONNECT_NONE 0
 #define ANET_CONNECT_NONBLOCK 1
 static int anetTcpGenericConnect(char *err, char *addr, int port, int flags)
@@ -500,8 +502,10 @@ static int anetGenericAccept(char *err, int s, struct sockaddr *sa, socklen_t *l
     return fd;
 }
 
+// listen socket 可读时accpet步骤,返回新建连接的ip和port
 int anetTcpAccept(char *err, int s, char *ip, size_t ip_len, int *port) {
     int fd;
+    // 兼容IPv4\IPv6的sockaddr
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
     if ((fd = anetGenericAccept(err,s,(struct sockaddr*)&sa,&salen)) == -1)
@@ -529,6 +533,7 @@ int anetUnixAccept(char *err, int s) {
     return fd;
 }
 
+// 获得一个连接的对端ip、port
 int anetPeerToString(int fd, char *ip, size_t ip_len, int *port) {
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
@@ -551,6 +556,7 @@ int anetPeerToString(int fd, char *ip, size_t ip_len, int *port) {
     return 0;
 }
 
+// 获得一个已经bind或connect后的socket的本地ip、port
 int anetSockName(int fd, char *ip, size_t ip_len, int *port) {
     struct sockaddr_storage sa;
     socklen_t salen = sizeof(sa);
