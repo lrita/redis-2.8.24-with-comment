@@ -33,6 +33,7 @@
 
 static void setProtocolError(redisClient *c, int pos);
 
+// 获得sds实际使用的内存大小
 /* To evaluate the output buffer size of a client we need to get size of
  * allocated objects, however we can't used zmalloc_size() directly on sds
  * strings because of the trick they use to work (the header is before the
@@ -46,10 +47,12 @@ void *dupClientReplyValue(void *o) {
     return o;
 }
 
+// "订阅"list的比较函数回调
 int listMatchObjects(void *a, void *b) {
     return equalStringObjects(a,b);
 }
 
+// 对新连接创建一个client会话,设置tcp socket相关设置，初始化db
 redisClient *createClient(int fd) {
     redisClient *c = zmalloc(sizeof(redisClient));
 
@@ -62,6 +65,7 @@ redisClient *createClient(int fd) {
         anetEnableTcpNoDelay(NULL,fd);
         if (server.tcpkeepalive)
             anetKeepAlive(NULL,fd,server.tcpkeepalive);
+        // 增加socket读事件回调函数
         if (aeCreateFileEvent(server.el,fd,AE_READABLE,
             readQueryFromClient, c) == AE_ERR)
         {
@@ -567,6 +571,7 @@ static void acceptCommonHandler(int fd, int flags) {
     c->flags |= flags;
 }
 
+// listen socket 可读时触发的回调函数，用于accpet
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;
     char cip[REDIS_IP_STR_LEN];
@@ -575,6 +580,7 @@ void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     REDIS_NOTUSED(privdata);
 
     while(max--) {
+        // accept的封装，获得新连接的ip(cip)和对端port(cport)
         cfd = anetTcpAccept(server.neterr, fd, cip, sizeof(cip), &cport);
         if (cfd == ANET_ERR) {
             if (errno != EWOULDBLOCK)
@@ -850,6 +856,8 @@ void resetClient(redisClient *c) {
     if (!(c->flags & REDIS_MULTI)) c->flags &= (~REDIS_ASKING);
 }
 
+// 内联协议的解析 "SET mykey 6\r\nfoobar\r\n"
+// 只解析第一行
 int processInlineBuffer(redisClient *c) {
     char *newline;
     int argc, j;
@@ -911,6 +919,7 @@ int processInlineBuffer(redisClient *c) {
     return REDIS_OK;
 }
 
+// 标记client出错，设置关闭client标志位，按需输出client信息。
 /* Helper function. Trims query buffer to make the function that processes
  * multi bulk requests idempotent. */
 static void setProtocolError(redisClient *c, int pos) {
@@ -924,6 +933,7 @@ static void setProtocolError(redisClient *c, int pos) {
     sdsrange(c->querybuf,pos,-1);
 }
 
+// 解析`统一请求协议`
 int processMultibulkBuffer(redisClient *c) {
     char *newline = NULL;
     int pos = 0, ok;
@@ -950,6 +960,7 @@ int processMultibulkBuffer(redisClient *c) {
         /* We know for sure there is a whole line since newline != NULL,
          * so go ahead and find out the multi bulk length. */
         redisAssertWithInfo(c,NULL,c->querybuf[0] == '*');
+        // 获得参数的个数 协议第一行 `*3\r\n`
         ok = string2ll(c->querybuf+1,newline-(c->querybuf+1),&ll);
         if (!ok || ll > 1024*1024) {
             addReplyError(c,"Protocol error: invalid multibulk length");
@@ -959,10 +970,12 @@ int processMultibulkBuffer(redisClient *c) {
 
         pos = (newline-c->querybuf)+2;
         if (ll <= 0) {
+            // 空命令???
             sdsrange(c->querybuf,pos,-1);
             return REDIS_OK;
         }
 
+        // 标记该query未读的参数个数
         c->multibulklen = ll;
 
         /* Setup argv array on client structure */
@@ -974,6 +987,7 @@ int processMultibulkBuffer(redisClient *c) {
     while(c->multibulklen) {
         /* Read bulk length if unknown */
         if (c->bulklen == -1) {
+            // 初始化时，参数长度未确定时
             newline = strchr(c->querybuf+pos,'\r');
             if (newline == NULL) {
                 if (sdslen(c->querybuf) > REDIS_INLINE_MAX_SIZE) {
@@ -989,6 +1003,7 @@ int processMultibulkBuffer(redisClient *c) {
             if (newline-(c->querybuf) > ((signed)sdslen(c->querybuf)-2))
                 break;
 
+            // 读第一个参数的长度 例如:`$2`
             if (c->querybuf[pos] != '$') {
                 addReplyErrorFormat(c,
                     "Protocol error: expected '$', got '%c'",
@@ -997,6 +1012,7 @@ int processMultibulkBuffer(redisClient *c) {
                 return REDIS_ERR;
             }
 
+            // 获得参数的长度
             ok = string2ll(c->querybuf+pos+1,newline-(c->querybuf+pos+1),&ll);
             if (!ok || ll < 0 || ll > 512*1024*1024) {
                 addReplyError(c,"Protocol error: invalid bulk length");
@@ -1006,6 +1022,7 @@ int processMultibulkBuffer(redisClient *c) {
 
             pos += newline-(c->querybuf+pos)+2;
             if (ll >= REDIS_MBULK_BIG_ARG) {
+                // 如果是超大参数时
                 size_t qblen;
 
                 /* If we are going to read a large object from network
@@ -1020,6 +1037,7 @@ int processMultibulkBuffer(redisClient *c) {
                 if (qblen < (size_t)ll+2)
                     c->querybuf = sdsMakeRoomFor(c->querybuf,ll+2-qblen);
             }
+            // 标记下一个待读参数的长度
             c->bulklen = ll;
         }
 
@@ -1031,6 +1049,7 @@ int processMultibulkBuffer(redisClient *c) {
             /* Optimization: if the buffer contains JUST our bulk element
              * instead of creating a new object by *copying* the sds we
              * just use the current sds string. */
+            // 将对应的参数加入argv的数组中
             if (pos == 0 &&
                 c->bulklen >= REDIS_MBULK_BIG_ARG &&
                 (signed) sdslen(c->querybuf) == c->bulklen+2)
@@ -1062,10 +1081,13 @@ int processMultibulkBuffer(redisClient *c) {
     return REDIS_ERR;
 }
 
+// 处理读到querybuf中的数据,协议解析、处理命令等
+// 协议参考: http://redisdoc.com/topic/protocol.html
 void processInputBuffer(redisClient *c) {
     /* Keep processing while there is something in the input buffer */
     while(sdslen(c->querybuf)) {
         /* Immediately abort if the client is in the middle of something. */
+        // 与BPOP相关
         if (c->flags & REDIS_BLOCKED) return;
 
         /* REDIS_CLOSE_AFTER_REPLY closes the connection once the reply is
@@ -1076,15 +1098,20 @@ void processInputBuffer(redisClient *c) {
         /* Determine request type when unknown. */
         if (!c->reqtype) {
             if (c->querybuf[0] == '*') {
+                // 首字节为*，表明是新的统一请求协议, redis 1.2引入作为标准协议
                 c->reqtype = REDIS_REQ_MULTIBULK;
             } else {
+                // 内联协议，为了兼容老版协议，保留。
+                // 同时有一部分简单的命令任然使用的是内联协议，如`PING`、`EXISTS`
                 c->reqtype = REDIS_REQ_INLINE;
             }
         }
 
         if (c->reqtype == REDIS_REQ_INLINE) {
+            // 解析内联协议
             if (processInlineBuffer(c) != REDIS_OK) break;
         } else if (c->reqtype == REDIS_REQ_MULTIBULK) {
+            // 解析统一请求协议
             if (processMultibulkBuffer(c) != REDIS_OK) break;
         } else {
             redisPanic("Unknown request type");
@@ -1095,12 +1122,14 @@ void processInputBuffer(redisClient *c) {
             resetClient(c);
         } else {
             /* Only reset the client when the command was executed. */
+            // 命令执行OK后，重置client的argv等状态(非全部状态)
             if (processCommand(c) == REDIS_OK)
                 resetClient(c);
         }
     }
 }
 
+// *important* 新增client连接可读时的回调函数,每个连接的起始点
 void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     redisClient *c = (redisClient*) privdata;
     int nread, readlen;
@@ -1108,6 +1137,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
     REDIS_NOTUSED(el);
     REDIS_NOTUSED(mask);
 
+    // 由于redis 每个新连接处理部分是单线程的，所以此处使用server.current_client时OK的.
     server.current_client = c;
     readlen = REDIS_IOBUF_LEN;
     /* If this is a multi bulk request, and we are processing a bulk reply
@@ -1150,6 +1180,8 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         server.current_client = NULL;
         return;
     }
+    // 请求query字节超过配置默认最大请求字节数时，认为是非法请求，关闭连接。
+    // 可以防范攻击等
     if (sdslen(c->querybuf) > server.client_max_querybuf_len) {
         sds ci = catClientInfoString(sdsempty(),c), bytes = sdsempty();
 
@@ -1160,6 +1192,7 @@ void readQueryFromClient(aeEventLoop *el, int fd, void *privdata, int mask) {
         freeClient(c);
         return;
     }
+    // 处理读到buff中的数据,协议解析、处理命令等
     processInputBuffer(c);
     server.current_client = NULL;
 }
@@ -1236,6 +1269,7 @@ char *getClientPeerId(redisClient *c) {
     return c->peerid;
 }
 
+// 将client相关信息，dump成字符串。用于debug或者log
 /* Concatenate a string representing the state of a client in an human
  * readable format, into the sds string 's'. */
 sds catClientInfoString(sds s, redisClient *client) {
