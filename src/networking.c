@@ -280,6 +280,7 @@ void _addReplyStringToList(redisClient *c, char *s, size_t len) {
  * The following functions are the ones that commands implementations will call.
  * -------------------------------------------------------------------------- */
 
+// 对一个请求回复一个简单obj，一般是字符串或者数字
 void addReply(redisClient *c, robj *obj) {
     if (prepareClientToWrite(c) != REDIS_OK) return;
 
@@ -291,6 +292,10 @@ void addReply(redisClient *c, robj *obj) {
      * we'll be able to send the object to the client without
      * messing with its page. */
     if (obj->encoding == REDIS_ENCODING_RAW) {
+        // 对于简单的字符串回复内容，将字符串的内容直接拷贝到client的response buf中即可。
+        // 只有reply元素过多、buf不够的情况下才使用将string的obj加入reply list的方式进行输出。
+        // 这样可以避免操作到obj的ref数据，尽量使内存的变动更小。可以时fork进行进行save时，
+        // 避免copy-on-write的代价.
         if (_addReplyToBuffer(c,obj->ptr,sdslen(obj->ptr)) != REDIS_OK)
             _addReplyObjectToList(c,obj);
     } else if (obj->encoding == REDIS_ENCODING_INT) {
@@ -316,6 +321,7 @@ void addReply(redisClient *c, robj *obj) {
     }
 }
 
+// 给client回复一个sds字符串，优先使用的方式是 将字符串拷贝到输出buf中
 void addReplySds(redisClient *c, sds s) {
     if (prepareClientToWrite(c) != REDIS_OK) {
         /* The caller expects the sds to be free'd. */
@@ -330,22 +336,26 @@ void addReplySds(redisClient *c, sds s) {
     }
 }
 
+// 给client回复一个raw字符串，优先使用的方式是 将字符串拷贝到输出buf中
 void addReplyString(redisClient *c, char *s, size_t len) {
     if (prepareClientToWrite(c) != REDIS_OK) return;
     if (_addReplyToBuffer(c,s,len) != REDIS_OK)
         _addReplyStringToList(c,s,len);
 }
 
+// 回复一个错误字符串
 void addReplyErrorLength(redisClient *c, char *s, size_t len) {
     addReplyString(c,"-ERR ",5);
     addReplyString(c,s,len);
     addReplyString(c,"\r\n",2);
 }
 
+// 回复一个错误字符串
 void addReplyError(redisClient *c, char *err) {
     addReplyErrorLength(c,err,strlen(err));
 }
 
+// 回复一个错误字符串带formater,会将字符串中的`\r`、`\n`转换为` `
 void addReplyErrorFormat(redisClient *c, const char *fmt, ...) {
     size_t l, j;
     va_list ap;
@@ -362,6 +372,7 @@ void addReplyErrorFormat(redisClient *c, const char *fmt, ...) {
     sdsfree(s);
 }
 
+// 回复一个状态字符串，如：对应`PING\r\n`命令的应答`+PONG\r\n`
 void addReplyStatusLength(redisClient *c, char *s, size_t len) {
     addReplyString(c,"+",1);
     addReplyString(c,s,len);
@@ -457,6 +468,7 @@ void addReplyLongLongWithPrefix(redisClient *c, long long ll, char prefix) {
     addReplyString(c,buf,len+3);
 }
 
+// 增加回复消息 类型long long
 void addReplyLongLong(redisClient *c, long long ll) {
     if (ll == 0)
         addReply(c,shared.czero);
@@ -466,7 +478,10 @@ void addReplyLongLong(redisClient *c, long long ll) {
         addReplyLongLongWithPrefix(c,ll,':');
 }
 
+// 返回消息第一行，标明回复有几个字段 "*<value>\r\n"
 void addReplyMultiBulkLen(redisClient *c, long length) {
+    // 优化项: length小于REDIS_SHARED_BULKHDR_LEN(32)时，使用预制字符串
+    //         加速输出，大于REDIS_SHARED_BULKHDR_LEN时，动态生成字符串
     if (length < REDIS_SHARED_BULKHDR_LEN)
         addReply(c,shared.mbulkhdr[length]);
     else

@@ -1193,6 +1193,7 @@ void beforeSleep(struct aeEventLoop *eventLoop) {
 
     /* Run a fast expire cycle (the called function will return
      * ASAP if a fast cycle is not needed). */
+    // 不是slave模式时执行activeExpireCycle逻辑
     if (server.active_expire_enabled && server.masterhost == NULL)
         activeExpireCycle(ACTIVE_EXPIRE_CYCLE_FAST);
 
@@ -1741,6 +1742,8 @@ void initServer(void) {
     server.repl_good_slaves_count = 0;
     updateCachedTime();
 
+    // 增加serverCron定时器，每毫秒执行一次
+    // 负责刷新watchdog,更新统计信息,刷新expire key等工作
     /* Create the serverCron() time event, that's our main way to process
      * background operations. */
     if(aeCreateTimeEvent(server.el, 1, serverCron, NULL, NULL) == AE_ERR) {
@@ -1748,6 +1751,7 @@ void initServer(void) {
         exit(1);
     }
 
+    // 增加对listen socket的监听
     /* Create an event handler for accepting new connections in TCP and Unix
      * domain sockets. */
     for (j = 0; j < server.ipfd_count; j++) {
@@ -1784,8 +1788,10 @@ void initServer(void) {
 
     replicationScriptCacheInit();
     scriptingInit();
+    // 初始化慢查询日志模块
     slowlogInit();
     latencyMonitorInit();
+    // 初始化BIO线程
     bioInit();
 }
 
@@ -1878,6 +1884,7 @@ void redisOpArrayFree(redisOpArray *oa) {
 
 /* ====================== Commands lookup and execution ===================== */
 
+// 从命令列表中查找`name`命令
 struct redisCommand *lookupCommand(sds name) {
     return dictFetchValue(server.commands, name);
 }
@@ -1957,6 +1964,7 @@ void call(redisClient *c, int flags) {
     redisOpArrayInit(&server.also_propagate);
     dirty = server.dirty;
     start = ustime();
+    // 调用对应命令的回调函数
     c->cmd->proc(c);
     duration = ustime()-start;
     dirty = server.dirty-dirty;
@@ -1982,7 +1990,10 @@ void call(redisClient *c, int flags) {
     if (flags & REDIS_CALL_SLOWLOG && c->cmd->proc != execCommand) {
         char *latency_event = (c->cmd->flags & REDIS_CMD_FAST) ?
                               "fast-command" : "command";
+        // 如果耗时大于server.latency_monitor_threshold，将该次加入采样
         latencyAddSampleIfNeeded(latency_event,duration/1000);
+        // 如果耗时大于server.slowlog_log_slower_than，将该次加入慢日志
+        // 输出链表，异步输出慢查询日志
         slowlogPushEntryIfNeeded(c->argv,c->argc,duration);
     }
     if (flags & REDIS_CALL_STATS) {
@@ -2022,6 +2033,7 @@ void call(redisClient *c, int flags) {
     server.stat_numcommands++;
 }
 
+// 在解析完协议后，执行命令阶段
 /* If this function gets called we already read a whole
  * command, arguments are in the client argv/argc fields.
  * processCommand() execute the command or prepare the
@@ -2043,14 +2055,18 @@ int processCommand(redisClient *c) {
 
     /* Now lookup the command and check ASAP about trivial error conditions
      * such as wrong arity, bad command name and so forth. */
+    // 从命令列表中查找对应的命令，大小写不敏感
     c->cmd = c->lastcmd = lookupCommand(c->argv[0]->ptr);
     if (!c->cmd) {
+        // 不正确的命令
+        // 如果在事务中，标记事务需要执行。
         flagTransaction(c);
         addReplyErrorFormat(c,"unknown command '%s'",
             (char*)c->argv[0]->ptr);
         return REDIS_OK;
     } else if ((c->cmd->arity > 0 && c->cmd->arity != c->argc) ||
                (c->argc < -c->cmd->arity)) {
+        // 如果命令参数个数不对，输出错误信息
         flagTransaction(c);
         addReplyErrorFormat(c,"wrong number of arguments for '%s' command",
             c->cmd->name);
@@ -2071,6 +2087,9 @@ int processCommand(redisClient *c) {
      * keys in the dataset). If there are not the only thing we can do
      * is returning an error. */
     if (server.maxmemory) {
+        // 如果限定了最大使用内存，则计算除去Slave client buffer、AOF buffer的占用量外
+        // 系统使用的内存是否超过了server.maxmemory，如果超限，根据配置的策略进行LRU操作
+        // 返回`REDIS_ERR`表明内存不够使用了。
         int retval = freeMemoryIfNeeded();
         /* freeMemoryIfNeeded may flush slave output buffers. This may result
          * into a slave, that may be the active client, to be freed. */
@@ -2179,10 +2198,14 @@ int processCommand(redisClient *c) {
         c->cmd->proc != execCommand && c->cmd->proc != discardCommand &&
         c->cmd->proc != multiCommand && c->cmd->proc != watchCommand)
     {
+        // 如果在事务中，将command加入事务队列
         queueMultiCommand(c);
         addReply(c,shared.queued);
     } else {
+        // 不在事务上下文中，或者是事务执行相关命令，直接调用执行。
         call(c,REDIS_CALL_FULL);
+        // 如果有client调用了BLPOP、BRPOP、BRPOPLPUSH等阻塞命令，则每次检查相关的key是否变化
+        // 触发block操作
         if (listLength(server.ready_keys))
             handleClientsBlockedOnLists();
     }
@@ -2909,6 +2932,7 @@ void monitorCommand(redisClient *c) {
 
 /* ============================ Maxmemory directive  ======================== */
 
+// 该函数会flush slave client的输出buffer，减少内存占用。
 /* This function gets called when 'maxmemory' is set on the config file to limit
  * the max memory used by the server, before processing a command.
  *
@@ -3384,7 +3408,7 @@ int main(int argc, char **argv) {
     }
     //按需启动daemonize模式
     if (server.daemonize) daemonize();
-    //*important* 初始化各个功能
+    //*important* 初始化各个功能, 初始化事件循环、listen socket等
     initServer();
     //按需创建pid文件，将进程pid写入
     if (server.daemonize) createPidFile();

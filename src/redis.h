@@ -250,7 +250,9 @@ typedef long long mstime_t; /* millisecond time type. */
 #define REDIS_PUBSUB (1<<18)      /* Client is in Pub/Sub mode. */
 
 /* Client request types */
+// 老版的内联协议
 #define REDIS_REQ_INLINE 1
+// 统一请求协议
 #define REDIS_REQ_MULTIBULK 2
 
 /* Client classes for client limits, currently used only for
@@ -485,6 +487,7 @@ typedef struct readyList {
     robj *key;
 } readyList;
 
+// 每个新增连接，会有一个redisClient数据结构，记录这个连接上请求的上下文。
 /* With multiplexing we need to take per-client state.
  * Clients are taken in a linked list. */
 typedef struct redisClient {
@@ -499,6 +502,7 @@ typedef struct redisClient {
     robj **argv;            /* command's argv */
     struct redisCommand *cmd, *lastcmd;
     int reqtype;
+    // 每次请求协议里未读的参数个数
     int multibulklen;       /* number of multi bulk arguments left to read */
     long bulklen;           /* length of bulk argument in multi bulk request */
     list *reply;
@@ -778,6 +782,7 @@ struct redisServer {
     int repl_diskless_sync_delay;   /* Delay to start a diskless repl BGSAVE. */
     /* Replication (slave) */
     char *masterauth;               /* AUTH with this password with master */
+    // 该实例的master地址，如果为NULL，表明本身是master实例
     char *masterhost;               /* Hostname of master */
     int masterport;                 /* Port of master */
     int repl_timeout;               /* Timeout after N seconds of master idle */

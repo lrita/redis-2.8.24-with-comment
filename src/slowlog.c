@@ -42,6 +42,8 @@
 #include "redis.h"
 #include "slowlog.h"
 
+// 参考: http://redisbook.readthedocs.io/en/latest/feature/slowlog.html
+
 /* Create a new slowlog entry.
  * Incrementing the ref count of all the objects retained is up to
  * this function. */
@@ -106,6 +108,7 @@ void slowlogInit(void) {
     listSetFreeMethod(server.slowlog,slowlogFreeEntry);
 }
 
+// 插入慢请求
 /* Push a new entry into the slow log.
  * This function will make sure to trim the slow log accordingly to the
  * configured max length. */
